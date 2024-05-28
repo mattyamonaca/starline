@@ -1,6 +1,5 @@
 from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 from diffusers import StableDiffusionXLControlNetPipeline, ControlNetModel, AutoencoderKL
-from controlnet_aux import OpenposeDetector, LineartAnimeDetector, CannyDetector
 import torch
 
 device = "cuda"
