@@ -7,6 +7,15 @@
 
 https://github.com/mattyamonaca/starline/assets/48423148/8199c65c-a19f-42e9-aab7-df5ed6ef5b4c
 
+# Installation
+```
+git clone https://github.com/mattyamonaca/starline.git
+cd starline
+conda create -n starline python=3.10
+conda activate starline
+conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia
+pip install -r requirements.txt
+```
 
 # Usage
 - ```python app.py```
