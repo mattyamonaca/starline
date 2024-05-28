@@ -9,6 +9,7 @@ https://github.com/mattyamonaca/starline/assets/48423148/8199c65c-a19f-42e9-aab7
 
 
 # Usage
+- ```python app.py```
 - Input the line drawing you wish to color (The background should be transparent).
 - Input a prompt describing the color you want to add.
 
