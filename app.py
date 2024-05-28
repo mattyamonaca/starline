@@ -62,7 +62,7 @@ class webui:
                     pos_prompt = gr.Textbox(max_lines=1000, label="positive prompt")                    
                     neg_prompt = gr.Textbox(max_lines=1000, label="negative prompt")
 
-                    alpha_th = gr.Slider(maximum = 255, value=150, label = "alpha threshold")
+                    alpha_th = gr.Slider(maximum = 255, value=100, label = "alpha threshold")
 
                     submit = gr.Button(value="Start")
                 with gr.Row():
