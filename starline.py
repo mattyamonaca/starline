@@ -7,6 +7,25 @@ from skimage.color import deltaE_ciede2000, rgb2lab
 import cv2
 import numpy as np
 
+def modify_transparency(img, target_rgb):
+    # 画像を読み込む
+    copy_img = img.copy() 
+    data = copy_img.getdata()
+
+    # 新しいピクセルデータを作成
+    new_data = []
+    for item in data:
+        # 指定されたRGB値のピクセルの場合、透明度を255に設定
+        if item[:3] == target_rgb:
+            new_data.append((item[0], item[1], item[2], 255))
+        else:
+            # それ以外の場合、透明度を0に設定
+            new_data.append((item[0], item[1], item[2], 0))
+
+    # 新しいデータを画像に設定し直す
+    copy_img.putdata(new_data)
+    return copy_img
+
 
 def replace_color(image, color_1, color_2, alpha_np):
     # 画像データを配列に変換
@@ -253,16 +272,17 @@ def get_major_colors(image, threshold_percentage=0.01):
     return major_colors
 
 
-def process(image, lineart, alpha_th):
+def process(image, lineart, alpha_th, thickness):
     org = image
     
     major_colors = get_major_colors(image, threshold_percentage=0.05)
     major_colors = consolidate_colors(major_colors, 10)
     new_color_1 = generate_distant_colors(major_colors, 100)
-    image = thicken_and_recolor_lines(org, lineart, thickness=5, new_color=new_color_1)
+    image = thicken_and_recolor_lines(org, lineart, thickness=thickness, new_color=new_color_1)
     major_colors.append((new_color_1, 0))
     new_color_2 = generate_distant_colors(major_colors, 100)
     image, alpha_np = recolor_lineart_and_composite(lineart, image, new_color_2, alpha_th)
     image = replace_color(image, new_color_1, new_color_2, alpha_np)
+    unfinished = modify_transparency(image, new_color_1)
 
-    return image
+    return image, unfinished

@@ -10,7 +10,7 @@ import cv2
 import os
 import numpy as np
 from PIL import Image
-
+import zipfile
 
 path = os.getcwd()
 output_dir = f"{path}/output"
@@ -20,11 +20,29 @@ cn_lineart_dir = f"{path}/controlnet/lineart"
 load_cn_model(cn_lineart_dir)
 load_cn_config(cn_lineart_dir)
 
+
+def zip_png_files(folder_path):
+    # Zipファイルの名前を設定（フォルダ名と同じにします）
+    zip_path = os.path.join(folder_path, 'output.zip')
+    
+    # zipfileオブジェクトを作成し、書き込みモードで開く
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        # フォルダ内のすべてのファイルをループ処理
+        for foldername, subfolders, filenames in os.walk(folder_path):
+            for filename in filenames:
+                # PNGファイルのみを対象にする
+                if filename.endswith('.png'):
+                    # ファイルのフルパスを取得
+                    file_path = os.path.join(foldername, filename)
+                    # zipファイルに追加
+                    zipf.write(file_path, arcname=os.path.relpath(file_path, folder_path))
+
+
 class webui:
     def __init__(self):
         self.demo = gr.Blocks()
 
-    def undercoat(self, input_image, pos_prompt, neg_prompt, alpha_th):
+    def undercoat(self, input_image, pos_prompt, neg_prompt, alpha_th, thickness):
         org_line_image = input_image
         image = pil2cv(input_image)
         image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
@@ -38,18 +56,25 @@ class webui:
         
 
         gen_image = generate(pipe, detectors, pos_prompt, neg_prompt)
-        output = process(gen_image.resize((image.shape[1], image.shape[0]), Image.ANTIALIAS) , org_line_image, alpha_th)
+        color_img, unfinished = process(gen_image.resize((image.shape[1], image.shape[0]), Image.ANTIALIAS) , org_line_image, alpha_th, thickness)
+        color_img.save(f"{output_dir}/color_img.png")
 
-        output = output.resize((image.shape[1], image.shape[0]) , Image.ANTIALIAS)
+        #color_img = color_img.resize((image.shape[1], image.shape[0]) , Image.ANTIALIAS)
 
 
-        output = Image.alpha_composite(output, org_line_image)
+        output_img = Image.alpha_composite(color_img, org_line_image)
         name = randomname(10)
-        output.save(f"{output_dir}/output_{name}.png")
-        #output = pil2cv(output)
-        file_name = f"{output_dir}/output_{name}.png"
+        os.makedirs(f"{output_dir}/{name}")
+        output_img.save(f"{output_dir}/{name}/output_image.png")
+        org_line_image.save(f"{output_dir}/{name}/line_image.png")
+        color_img.save(f"{output_dir}/{name}/color_image.png")
+        unfinished.save(f"{output_dir}/{name}/unfinished_image.png")
 
-        return output, file_name
+        outputs = [output_img, org_line_image, color_img, unfinished]
+        zip_png_files(f"{output_dir}/{name}")
+        filename = f"{output_dir}/{name}/output.zip"
+
+        return outputs, filename
 
 
 
@@ -63,17 +88,18 @@ class webui:
                     neg_prompt = gr.Textbox(max_lines=1000, label="negative prompt")
 
                     alpha_th = gr.Slider(maximum = 255, value=100, label = "alpha threshold")
+                    thickness = gr.Number(value=3, label="Thickness of correction area (Odd numbers need to be entered)")
+                    #gr.Slider(maximum = 21, value=3, step=2, label = "Thickness of correction area")
 
                     submit = gr.Button(value="Start")
                 with gr.Row():
                     with gr.Column():
                         with gr.Tab("output"):
-                            output_0 = gr.Image()
-
-                    output_file = gr.File()
+                            output_0 = gr.Gallery(format="png")
+                        output_file = gr.File()
             submit.click(
                 self.undercoat, 
-                inputs=[input_image, pos_prompt, neg_prompt, alpha_th], 
+                inputs=[input_image, pos_prompt, neg_prompt, alpha_th, thickness], 
                 outputs=[output_0, output_file]
             )
 

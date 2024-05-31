@@ -49,8 +49,8 @@ def get_cn_detector(image):
     return detectors
 
 def generate(pipe, detectors, prompt, negative_prompt):
-    default_pos = "1girl, bestquality, 4K, ((white background)), no background"
-    default_neg = "shadow, (worst quality, low quality:1.2), (lowres:1.2), (bad anatomy:1.2), (greyscale, monochrome:1.4)"
+    default_pos = ""
+    default_neg = ""
     prompt = default_pos + prompt 
     negative_prompt = default_neg + negative_prompt 
     print(type(pipe))
