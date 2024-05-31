@@ -88,7 +88,7 @@ class webui:
                     neg_prompt = gr.Textbox(max_lines=1000, label="negative prompt")
 
                     alpha_th = gr.Slider(maximum = 255, value=100, label = "alpha threshold")
-                    thickness = gr.Number(value=3, label="Thickness of correction area (Odd numbers need to be entered)")
+                    thickness = gr.Number(value=5, label="Thickness of correction area (Odd numbers need to be entered)")
                     #gr.Slider(maximum = 21, value=3, step=2, label = "Thickness of correction area")
 
                     submit = gr.Button(value="Start")
