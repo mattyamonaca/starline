@@ -336,12 +336,11 @@ def process(image, lineart, alpha_th, thickness):
     image, alpha_np = recolor_lineart_and_composite(
         lineart, image, new_color_2, alpha_th
     )
-    import time
-
-    start = time.time()
+    # import time
+    # start = time.time()
     image = replace_color(image, new_color_1, new_color_2, alpha_np)
-    end = time.time()
-    print(f"{end-start} sec")
+    # end = time.time()
+    # print(f"{end-start} sec")
     unfinished = modify_transparency(image, new_color_1)
 
     return image, unfinished
