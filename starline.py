@@ -1,9 +1,8 @@
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import cv2
 import numpy as np
-from PIL import Image, ImageFilter
-from skimage import color as sk_color
+from PIL import Image
 from skimage.color import deltaE_ciede2000, rgb2lab
 from tqdm import tqdm
 
@@ -35,96 +34,65 @@ def replace_color(image, color_1, color_2, alpha_np):
     # RGBAモードの画像であるため、形状変更時に4チャネルを考慮
     original_shape = data.shape
 
-    from collections import deque
+    # 幅優先探索で color_1 の領域を外側から塗りつぶす
+    color_1 = np.array(color_1, dtype=np.uint8)
+    color_2 = np.array(color_2, dtype=np.uint8)
 
-    # color_1 = np.array(color_1)
-    # color_2 = np.array(color_2)
-    # que = deque(
-    #     zip(*np.where(data[:, :, :3] == color_1)),
-    # )
+    # color_2 で保護されたオリジナルの線画
+    protected = np.all(data[:, :, :3] == color_2, axis=2)
+    # color_1 で塗られた塗りつぶしたい領域
+    fill_target = np.all(data[:, :, :3] == color_1, axis=2)
+    # すでに塗られている領域
+    colored = (protected | fill_target) == False
 
-    data = data.reshape(-1, 4)  # RGBAのため、4チャネルでフラット化
+    # bfs の始点を列挙
+    adj_r = colored & np.roll(fill_target, -1, axis=0)
+    adj_r[:, -1] = False
+    adj_l = colored & np.roll(fill_target, 1, axis=0)
+    adj_l[:, 0] = False
+    adj_u = colored & np.roll(fill_target, 1, axis=1)
+    adj_u[:, 0] = False
+    adj_d = colored & np.roll(fill_target, -1, axis=1)
+    adj_d[:, -1] = False
 
-    # for y in range(data.shape[0]):
-    #     for x in range(data.shape[1]):
-    #         neighbors = [
-    #             (x - 1, y),
-    #             (x + 1, y),
-    #             (x, y - 1),
-    #             (x, y + 1),  # 上下左右
-    #         ]
-    #         if np.all(data[y, x, :3] == color_1, axis=2) or np.all(
-    #             data[y, x, :3] == color_2, axis=2
-    #         ):
-    #             continue
-    #         for nx, ny in neighbors:
-    #             if (
-    #                 nx < 0
-    #                 or nx >= original_shape[1]
-    #                 or ny < 0
-    #                 or ny >= original_shape[0]
-    #             ):
-    #                 continue
-    #             if np.all(data[ny, nx, :3] == color_1, axis=2):
-    #                 que.append((y, x))
-    #                 break
-    #
-    # while len(que) > 0:
-    #     y, x = que.popleft()
-    #     neighbors = [
-    #         (x - 1, y),
-    #         (x + 1, y),
-    #         (x, y - 1),
-    #         (x, y + 1),  # 上下左右
-    #     ]
-    #     for nx, ny in neighbors:
-    #         if nx < 0 or nx >= original_shape[1] or ny < 0 or ny >= original_shape[0]:
-    #             continue
-    #         if np.all(data[ny, nx, :3] == color_1):
-    #             data[ny, nx, :3] = data[y, x, :3]
-    #             que.append((y, x))
+    # そのピクセルはすでに塗られていて、上下左右いずれかのピクセルが color_1 であるもの
+    bfs_target = adj_r | adj_l | adj_u | adj_d
 
-    # color_1のマッチングを検索する際にはRGB値のみを比較
-    matches = np.all(data[:, :3] == color_1, axis=1)
+    que = deque(
+        zip(*np.where(bfs_target)),
+        maxlen=original_shape[0] * original_shape[1] * 2,
+    )
 
-    # 変更を追跡するためのフラグ
-    nochange_count = 0
-    idx = 0
+    with tqdm(total=original_shape[0] * original_shape[1]) as pbar:
+        pbar.update(np.sum(colored) - np.sum(bfs_target) + np.sum(protected))
+        while len(que) > 0:
+            y, x = que.popleft()
+            neighbors = [
+                (x - 1, y),
+                (x + 1, y),
+                (x, y - 1),
+                (x, y + 1),  # 上下左右
+            ]
+            pbar.update(1)
+            # assert not fill_target[y, x] and not protected[y, x]
+            # assert colored[y, x]
+            color = data[y, x, :3]
 
-    while np.any(matches):
-        idx += 1
-        new_matches = np.zeros_like(matches)
-        match_num = np.sum(matches)
-        for i in tqdm(range(len(data))):
-            if matches[i]:
-                x, y = divmod(i, original_shape[1])
-                neighbors = [
-                    (x - 1, y),
-                    (x + 1, y),
-                    (x, y - 1),
-                    (x, y + 1),  # 上下左右
-                ]
-                replacement_found = False
-                for nx, ny in neighbors:
-                    if 0 <= nx < original_shape[0] and 0 <= ny < original_shape[1]:
-                        ni = nx * original_shape[1] + ny
-                        # RGBのみ比較し、アルファは無視
-                        if not np.all(data[ni, :3] == color_1, axis=0) and not np.all(
-                            data[ni, :3] == color_2, axis=0
-                        ):
-                            data[i, :3] = data[ni, :3]  # RGB値のみ更新
-                            replacement_found = True
-                            continue
-                if not replacement_found:
-                    new_matches[i] = True
-        matches = new_matches
-        if match_num == np.sum(matches):
-            nochange_count += 1
-        if nochange_count > 5:
-            break
+            for nx, ny in neighbors:
+                if (
+                    nx < 0
+                    or nx >= original_shape[1]
+                    or ny < 0
+                    or ny >= original_shape[0]
+                ):
+                    continue
+                if fill_target[ny, nx]:
+                    fill_target[ny, nx] = False
+                    # colored[ny, nx] = True
+                    data[ny, nx, :3] = color
+                    que.append((ny, nx))
+        pbar.update(pbar.total - pbar.n)
 
-    # 最終的な画像をPIL形式で返す
-    data = data.reshape(original_shape)
     data[:, :, 3] = 255 - alpha_np
     return Image.fromarray(data, "RGBA")
 
@@ -244,21 +212,31 @@ def generate_distant_colors(consolidated_colors, distance_threshold):
     ]
 
     # Try to find a distant color
-    max_attempts = 10000
+    max_attempts = 1000
+    best_dist = 0.0
+    best_color = (0, 0, 0)
+
+    # np.random.seed(42)
     for _ in range(max_attempts):
         # Generate a random color in RGB and convert to LAB
         random_rgb = np.random.randint(0, 256, size=3)
         random_lab = rgb2lab(np.array([random_rgb], dtype=np.float32) / 255.0).reshape(
             3
         )
-        for base_color_lab in consolidated_lab:
-            # Calculate the CIEDE2000 distance
-            distance = deltaE_ciede2000(base_color_lab, random_lab)
-            if distance <= distance_threshold:
-                break
-        new_color = tuple(random_rgb)
-        break
-    return new_color
+        # consolidated_lab にある色からできるだけ遠い色を選びたい
+        min_distance = min(
+            map(
+                lambda base_color_lab: deltaE_ciede2000(base_color_lab, random_lab),
+                consolidated_lab,
+            )
+        )
+        if min_distance > distance_threshold:
+            return tuple(random_rgb)
+        # 閾値以上のものが見つからなかった場合に備えて一番良かったものを覚えておく
+        if best_dist < min_distance:
+            best_dist = min_distance
+            best_color = tuple(random_rgb)
+    return best_color
 
 
 def consolidate_colors(major_colors, threshold):
@@ -347,27 +325,27 @@ def process(image, lineart, alpha_th, thickness):
 
     major_colors = get_major_colors(image, threshold_percentage=0.05)
     major_colors = consolidate_colors(major_colors, 10)
-    new_color_1 = generate_distant_colors(major_colors, 100)
+    new_color_1 = generate_distant_colors(major_colors, 50)
     image = thicken_and_recolor_lines(
         org, lineart, thickness=thickness, new_color=new_color_1
     )
     major_colors.append((new_color_1, 0))
-    new_color_2 = generate_distant_colors(major_colors, 100)
+    new_color_2 = generate_distant_colors(major_colors, 40)
     image, alpha_np = recolor_lineart_and_composite(
         lineart, image, new_color_2, alpha_th
     )
+    import time
+
+    start = time.time()
     image = replace_color(image, new_color_1, new_color_2, alpha_np)
+    end = time.time()
+    print(f"{end-start} sec")
     unfinished = modify_transparency(image, new_color_1)
 
     return image, unfinished
 
 
 def main():
-    # parse argvs
-    # python starline.py -c COLORED_IMAGE -l LINEART_IMAGE [-o OUTPUT_DIR] [-a alpha_th] [-t thickness]
-    # write output_dir/RESULT_IMAGE.png
-
-    # use argparse to parse argvs
     import os
     import sys
     from argparse import ArgumentParser
@@ -383,9 +361,9 @@ def main():
     )
     args.add_argument("-c", "--colored_image", help="colored image", required=True)
     args.add_argument("-l", "--lineart_image", help="lineart image", required=True)
-    args.add_argument("-o", "--output_dir", help="output directory", default=".")
-    args.add_argument("-a", "--alpha_th", help="alpha threshold", default=100)
-    args.add_argument("-t", "--thickness", help="line thickness", default=5)
+    args.add_argument("-o", "--output_dir", help="output directory", default="output")
+    args.add_argument("-a", "--alpha_th", help="alpha threshold", default=100, type=int)
+    args.add_argument("-t", "--thickness", help="line thickness", default=5, type=int)
 
     sys.argv += ["-c", "color.png"]
     sys.argv += ["-l", "line.png"]
@@ -398,7 +376,15 @@ def main():
     output_dir = args.output_dir
 
     colored_image = Image.open(colored_image_path)
-    lineart_image = Image.open(lineart_image_path).convert("RGBA")
+    lineart_image = Image.open(lineart_image_path)
+    if lineart_image.mode == "P" or lineart_image.mode == "L":
+        lineart_image = lineart_image.convert("RGBA")
+        lineart_image = np.array(lineart_image)
+        lineart_image[:, :, 0] = 255 - lineart_image[:, :, 3]
+        lineart_image[:, :, 1] = 255 - lineart_image[:, :, 3]
+        lineart_image[:, :, 2] = 255 - lineart_image[:, :, 3]
+        lineart_image = Image.fromarray(lineart_image)
+        lineart_image = lineart_image.convert("RGBA")
 
     result_image, unfinished = process(colored_image, lineart_image, alpha, thickness)
 
