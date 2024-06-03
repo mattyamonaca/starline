@@ -34,10 +34,10 @@ def replace_color(image, color_1, color_2, alpha_np):
     # RGBAモードの画像であるため、形状変更時に4チャネルを考慮
     original_shape = data.shape
 
-    # 幅優先探索で color_1 の領域を外側から塗りつぶす
     color_1 = np.array(color_1, dtype=np.uint8)
     color_2 = np.array(color_2, dtype=np.uint8)
 
+    # 幅優先探索で color_1 の領域を外側から塗りつぶす
     # color_2 で保護されたオリジナルの線画
     protected = np.all(data[:, :, :3] == color_2, axis=2)
     # color_1 で塗られた塗りつぶしたい領域
@@ -46,6 +46,8 @@ def replace_color(image, color_1, color_2, alpha_np):
     colored = (protected | fill_target) == False
 
     # bfs の始点を列挙
+    # colored をそのまま使ってもいいが、pythonは遅いのでnumpy経由のこの方が速い
+    # 上下左右にシフトした fill_target & colored == True になるやつ
     adj_r = colored & np.roll(fill_target, -1, axis=0)
     adj_r[:, -1] = False
     adj_l = colored & np.roll(fill_target, 1, axis=0)
@@ -56,15 +58,15 @@ def replace_color(image, color_1, color_2, alpha_np):
     adj_d[:, -1] = False
 
     # そのピクセルはすでに塗られていて、上下左右いずれかのピクセルが color_1 であるもの
-    bfs_target = adj_r | adj_l | adj_u | adj_d
+    bfs_start = adj_r | adj_l | adj_u | adj_d
 
     que = deque(
-        zip(*np.where(bfs_target)),
+        zip(*np.where(bfs_start)),
         maxlen=original_shape[0] * original_shape[1] * 2,
     )
 
     with tqdm(total=original_shape[0] * original_shape[1]) as pbar:
-        pbar.update(np.sum(colored) - np.sum(bfs_target) + np.sum(protected))
+        pbar.update(np.sum(colored) - np.sum(bfs_start) + np.sum(protected))
         while len(que) > 0:
             y, x = que.popleft()
             neighbors = [
@@ -365,9 +367,6 @@ def main():
     args.add_argument("-a", "--alpha_th", help="alpha threshold", default=100, type=int)
     args.add_argument("-t", "--thickness", help="line thickness", default=5, type=int)
 
-    sys.argv += ["-c", "color.png"]
-    sys.argv += ["-l", "line.png"]
-
     args = args.parse_args(sys.argv[1:])
     colored_image_path = args.colored_image
     lineart_image_path = args.lineart_image
@@ -378,6 +377,9 @@ def main():
     colored_image = Image.open(colored_image_path)
     lineart_image = Image.open(lineart_image_path)
     if lineart_image.mode == "P" or lineart_image.mode == "L":
+        # 線画が 1-channel 画像のときの処理
+        # alpha-channel の情報が入力されたと仮定して (透明 -> 0, 不透明 -> 255)
+        # RGB channel はこれを反転させたものにする (透明 -> 白 -> 255, 不透明 -> 黒 -> 0)
         lineart_image = lineart_image.convert("RGBA")
         lineart_image = np.array(lineart_image)
         lineart_image[:, :, 0] = 255 - lineart_image[:, :, 3]
