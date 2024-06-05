@@ -84,8 +84,8 @@ class webui:
                 with gr.Column():
                     input_image = gr.Image(type="pil", image_mode="RGBA")
 
-                    pos_prompt = gr.Textbox(max_lines=1000, label="positive prompt")                    
-                    neg_prompt = gr.Textbox(max_lines=1000, label="negative prompt")
+                    pos_prompt = gr.Textbox(value="1girl, blue hair, pink shirts, bestquality, 4K", max_lines=1000, label="positive prompt")                    
+                    neg_prompt = gr.Textbox(value=" (worst quality, low quality:1.2), (lowres:1.2), (bad anatomy:1.2), (greyscale, monochrome:1.4)", max_lines=1000, label="negative prompt")
 
                     alpha_th = gr.Slider(maximum = 255, value=100, label = "alpha threshold")
                     thickness = gr.Number(value=5, label="Thickness of correction area (Odd numbers need to be entered)")

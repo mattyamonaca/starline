@@ -324,13 +324,26 @@ def get_major_colors(image, threshold_percentage=0.01):
 
 def process(image, lineart, alpha_th, thickness):
     org = image
+    image.save("tmp.png")
 
     major_colors = get_major_colors(image, threshold_percentage=0.05)
     major_colors = consolidate_colors(major_colors, 10)
+
+    th = 10
+    threshold_percentage = 0.05
+    while len(major_colors) < 1:
+        threshold_percentage = threshold_percentage - 0.001
+        major_colors = get_major_colors(image, threshold_percentage=threshold_percentage)
+        
+    while len(major_colors) < 1:
+        th = th + 1
+        major_colors = consolidate_colors(major_colors, th)
+
     new_color_1 = generate_distant_colors(major_colors, 50)
     image = thicken_and_recolor_lines(
         org, lineart, thickness=thickness, new_color=new_color_1
     )
+    
     major_colors.append((new_color_1, 0))
     new_color_2 = generate_distant_colors(major_colors, 40)
     image, alpha_np = recolor_lineart_and_composite(
