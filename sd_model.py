@@ -19,7 +19,7 @@ def get_cn_pipeline():
     #    pipe.safety_checker = lambda images, **kwargs: (images, [False])
     
     #pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
-    #pipe.to(device)
+    pipe.to(device)
 
     return pipe
 
