@@ -15,8 +15,6 @@ def get_cn_pipeline():
         "cagliostrolab/animagine-xl-3.1", controlnet=controlnets, vae=vae, torch_dtype=torch.float16
     )
 
-    pipe.enable_model_cpu_offload()
-
     #if pipe.safety_checker is not None:
     #    pipe.safety_checker = lambda images, **kwargs: (images, [False])
     
